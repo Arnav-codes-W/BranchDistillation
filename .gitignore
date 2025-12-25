@@ -6,10 +6,12 @@ samples_real
 .triton
 checkpoints
 .cursor-server
-      
 .idea/
 .vscode-server
 .vscode/
 .wget-hsts
 .windsurf-server
 __pycache__/
+
+*.ckpt
+*.safetensors
