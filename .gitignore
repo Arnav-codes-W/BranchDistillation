@@ -1,0 +1,15 @@
+cifar
+.lightning_studio
+images_generated
+samples_fake
+samples_real
+.triton
+checkpoints
+.cursor-server
+      
+.idea/
+.vscode-server
+.vscode/
+.wget-hsts
+.windsurf-server
+__pycache__/

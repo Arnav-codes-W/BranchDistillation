@@ -1,0 +1,6 @@
+fid for the teacher model - 24.193
+Checkpoint: /teamspace/studios/this_studio/checkpoints_2/checkpoint_epoch_16.pt
+FID: 67.7459
+----------------------------------------
+fid of the pretrained model is 15.6 
+fid of the pretrained model with the paper weights is 5.55755 (ddim steps 100 and 50k images)
