@@ -18,8 +18,19 @@ os.makedirs(SAVE_DIR, exist_ok=True)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-model = UNet2DModel.from_pretrained('/teamspace/studios/this_studio/new_model/pretrained/ddpm_ema_cifar10/unet')
+config = UNet2DModel.load_config('/teamspace/studios/this_studio/new_model/pretrained/ddpm_ema_cifar10/unet')
+model = UNet2DModel.from_config(config=config)
+model.to(device)
 model.eval()
+
+state_dict = load_file('config = UNet2DModel.load_config('/teamspace/studios/this_studio/new_model/pretrained/ddpm_ema_cifar10/unet')
+teacher = UNet2DModel.from_config(config=config)
+teacher.to(device)
+teacher.eval()
+
+state_dict = load_file('/teamspace/studios/this_studio/new_model/pretrained/ddpm_ema_cifar10/unet/diffusion_pytorch_model.safetensors')
+model.load_state_dict(state_dict=state_dict)
+
 #creating the scheduler 
 scheduler_info = DDPMScheduler.from_pretrained('/teamspace/studios/this_studio/new_model/pretrained/ddpm_ema_cifar10/scheduler')
 scheduler = DDIMScheduler.from_config(scheduler_info.config)

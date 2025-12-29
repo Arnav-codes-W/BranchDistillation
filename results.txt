@@ -4,3 +4,4 @@ FID: 67.7459
 ----------------------------------------
 fid of the pretrained model is 15.6 
 fid of the pretrained model with the paper weights is 5.55755 (ddim steps 100 and 50k images)
+for the first student - training steps = 29k - loss 0.0003

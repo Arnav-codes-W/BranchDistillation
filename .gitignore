@@ -12,6 +12,6 @@ checkpoints
 .wget-hsts
 .windsurf-server
 __pycache__/
-
+*.pt
 *.ckpt
 *.safetensors

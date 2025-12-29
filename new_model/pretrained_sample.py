@@ -1,50 +1,115 @@
-#using the actual paper weights converted to diffusers 
-import matplotlib.pyplot as plt
-from torchvision.utils import make_grid,save_image
 import torch
-from diffusers import UNet2DModel,DDPMScheduler,DDIMScheduler
+import matplotlib.pyplot as plt
+from torchvision.utils import make_grid, save_image
+from diffusers import UNet2DModel, DDPMScheduler, DDIMScheduler
 from safetensors.torch import load_file
 
-device = 'cuda'if torch.cuda.is_available() else 'cpu'
-
-config = UNet2DModel.load_config('/teamspace/studios/this_studio/pretrained/ddpm_ema_cifar10/unet')   #loads a configuration dictionary 
-model = UNet2DModel.from_config(config)                      #loads the actual model
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-state_dict = load_file('/teamspace/studios/this_studio/pretrained/ddpm_ema_cifar10/unet/diffusion_pytorch_model.safetensors', device="cpu") #loads the weights dictionary
-model.load_state_dict(state_dict=state_dict)                       #loads the weights into the model
 
-#creating the scheduler 
-scheduler_info = DDPMScheduler.from_pretrained('/teamspace/studios/this_studio/pretrained/ddpm_ema_cifar10/scheduler')
-scheduler = DDIMScheduler.from_config(scheduler_info.config)
-scheduler.set_timesteps(50)
+#EMA helper 
+class EMA:
+    def __init__(self, model, decay=0.9999):
+        self.decay = decay
+        self.shadow = {}
+        self.backup = {}
 
-#loading model to device
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                self.shadow[name] = param.data.clone()
+
+    @torch.no_grad()
+    def update(self, model):
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                self.shadow[name].mul_(self.decay)
+                self.shadow[name].add_(param.data, alpha=1.0 - self.decay)
+
+    def apply_shadow(self, model):
+        self.backup = {}
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                self.backup[name] = param.data.clone()
+                param.data.copy_(self.shadow[name])
+
+    def restore(self, model):
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                param.data.copy_(self.backup[name])
+        self.backup = {}
+
+# -------------------------
+# Load model config
+# -------------------------
+config = UNet2DModel.load_config(
+    "/teamspace/studios/this_studio/new_model/pretrained/ddpm_ema_cifar10/unet"
+)
+model = UNet2DModel.from_config(config)
+
+# -------------------------
+# Load STUDENT checkpoint
+# -------------------------
+
+checkpoint = torch.load(
+    "/teamspace/studios/this_studio/pd_1000_to_500/ckpt_54000.pt",
+    map_location="cpu",
+)
+
+model.load_state_dict(checkpoint["student"])
+ema=EMA(model)
+ema.shadow = checkpoint["ema"]
+ema.apply_shadow(model)
 model.to(device)
 model.eval()
 
-#creating noise 
-samples = torch.randn((16,3,32,32)).to(device)
-scheduler.timesteps = scheduler.timesteps.to(device)
-#sampling loop
+'''
+checkpoint = load_file('/teamspace/studios/this_studio/new_model/pretrained/ddpm_ema_cifar10/unet/diffusion_pytorch_model.safetensors')
+model.load_state_dict(checkpoint)
+model.to(device)
+model.eval()
+'''
+# ------------------------
+# Load scheduler
+# -------------------------
+
+scheduler = DDIMScheduler(num_train_timesteps=(500),beta_start=0.0001, beta_end= 0.02, beta_schedule='linear',prediction_type='epsilon')
+scheduler.set_timesteps(100)
+scheduler.timesteps= scheduler.timesteps.to(device=device)
+
+# -------------------------
+# Sampling
+# -------------------------
+samples = torch.randn((16, 3, 32, 32), device=device)
+
 with torch.no_grad():
     for t in scheduler.timesteps:
-        t=t.to(device)
         model_output = model(samples, t).sample
         samples = scheduler.step(
-            model_output, t, samples
+            model_output=model_output,
+            timestep=t,
+            sample=samples,
         ).prev_sample
 
-
+# -------------------------
+# Visualize
+# -------------------------
+# -------------------------
 samples = (samples.clamp(-1, 1) + 1) / 2
+
+# -------------------------
+# Visualize
+# -------------------------
 grid = make_grid(samples, nrow=4)
 plt.imshow(grid.permute(1, 2, 0).cpu())
 plt.axis("off")
 plt.show()
 
-#saving the image
+# -------------------------
+# Save
+# -------------------------
 save_image(
     samples,
-    "images/samples_pretrained_original.png",
+    "images_generated/student_500.png",
     nrow=4,
 )
