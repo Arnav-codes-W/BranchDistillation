@@ -4,4 +4,8 @@ FID: 67.7459
 ----------------------------------------
 fid of the pretrained model is 15.6 
 fid of the pretrained model with the paper weights is 5.55755 (ddim steps 100 and 50k images)
-for the first student - training steps = 29k - loss 0.0003
+fid of the distilled student with 500 steps is 11.9650 (ddim steps 100 and 50k images)
+
+
+***nuances***
+1) the abrupt change in the fid of the student wrt the teacher is because we use loss parameterization in our distillation instead of v prediction and we dont use the right loss weighing scheme required 

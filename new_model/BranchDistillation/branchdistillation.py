@@ -1,7 +1,11 @@
+
+# as batch size 256, the checkpoints are only till 25000
+
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
+from torch.xpu import device
 from torchvision import datasets, transforms
 from diffusers import UNet2DModel, DDIMScheduler, DDPMScheduler
 from safetensors.torch import load_file
@@ -38,6 +42,8 @@ def ddim_step_explicit(z_t, eps, t, scheduler, device, clip=True):
     return z_prev
 
 
+
+
 #gamma weighing 
 def gamma_weight(alpha, sigma, gamma):
     """
@@ -65,15 +71,21 @@ class EMA:
         model.load_state_dict(self.shadow)
 
 
+RESUME = True
+CKPT_PATH = "/teamspace/studios/this_studio/pd_1000_to_500_branch/ckpt_90000.pt"
+
+
+
+
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 BATCH_SIZE = 128
 EPOCHS = 140
-LR = 2e-5
+LR = 2e-4
 GAMMA= 1.0
 TEACHER_STEPS = 1000
 STUDENT_STEPS = 500
 
-SAVE_DIR = "./pd_1000_to_500"
+SAVE_DIR = "./pd_1000_to_500_branch"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 
@@ -110,20 +122,53 @@ teacher.load_state_dict(
 )
 teacher.to(DEVICE).eval()
 
+#config for branching out 
+
+config['out_channels']= 6
 student = UNet2DModel.from_config(config)
-student.load_state_dict(teacher.state_dict())  #init student w tteacher 
+
+#loading the weights 
+teacher_state = teacher.state_dict()
+
+# remove output layer
+for k in ["conv_out.weight", "conv_out.bias"]:
+    teacher_state.pop(k)
+
+student.load_state_dict(teacher_state, strict=False) #init student w tteacher without the last layer kernels 
+
+#load the teacher last layer weights twice into the student last layer
+with torch.no_grad():
+    # Teacher output
+    w_t = teacher.conv_out.weight.data    # [3, 128, 3, 3]
+    b_t = teacher.conv_out.bias.data      # [3]
+
+    # Student output
+    w_s = student.conv_out.weight.data    # [6, 128, 3, 3]
+    b_s = student.conv_out.bias.data      # [6]
+
+    # Copy teacher weights twice
+    w_s[0:3].copy_(w_t)
+    w_s[3:6].copy_(w_t)
+
+    b_s[0:3].copy_(b_t)
+    b_s[3:6].copy_(b_t)
+
 student.to(DEVICE).train()
+  
 
 ema = EMA(student)
 
+#ddpm scheduler
 ddpm = DDPMScheduler(num_train_timesteps=TEACHER_STEPS)
 
+#ddim teacher scheduler 
 ddim_teacher = DDIMScheduler(
     num_train_timesteps=TEACHER_STEPS,
     prediction_type="epsilon",
 )
 ddim_teacher.set_timesteps(TEACHER_STEPS)
 
+#ddim student scheduler
 ddim_student = DDIMScheduler(
     num_train_timesteps=STUDENT_STEPS,
     prediction_type="epsilon",
@@ -133,10 +178,28 @@ ddim_student.set_timesteps(STUDENT_STEPS)
 optimizer = AdamW(student.parameters(), lr=LR)
 loss_fn = nn.MSELoss()
 
+start_step = 0
+start_epoch = 0
 
-global_step = 0
+if RESUME and os.path.exists(CKPT_PATH):
+    ckpt = torch.load(CKPT_PATH, map_location="cpu")
 
-for epoch in range(EPOCHS):
+    student.load_state_dict(ckpt["student"])
+    student.to(DEVICE).train()
+    ema.shadow = {k: v.to(DEVICE) for k, v in ckpt["ema"].items()}
+
+    start_step = ckpt["step"]
+
+    # recover epoch index approximately
+    steps_per_epoch = len(loader)
+    start_epoch = start_step // steps_per_epoch
+
+    print(f"✅ Resumed from step {start_step} (epoch {start_epoch})")
+
+
+global_step = start_step
+
+for epoch in range(start_epoch,EPOCHS):
     pbar = tqdm(loader, desc=f"Epoch {epoch+1}/{EPOCHS}")
 
     for x0, _ in pbar:
@@ -149,8 +212,9 @@ for epoch in range(EPOCHS):
         #t_vec = torch.full((bsz,), t, device=DEVICE, dtype=torch.long)
 
         # DDPM forward
-        eps = torch.randn_like(x0)
+        eps = torch.randn_like(x0).to(device=DEVICE)
         zt = ddpm.add_noise(x0, eps, t)
+        zt= zt.to(device=DEVICE)
 
         with torch.no_grad():
             # t -> t-1
@@ -175,9 +239,19 @@ for epoch in range(EPOCHS):
 
       
         eps_s = student(zt, k).sample
-        zt_student = ddim_step_explicit(
+        eps_s2= eps_s[:,-3:,:,:] #actual noise prediction
+        eps_s1= eps_s[:,:3,:,:] #intermediate step 
+
+        zt_student_1 = ddim_step_explicit(
             z_t=zt,
-            eps=eps_s,
+            eps=eps_s1,
+            t=k,
+            scheduler=ddim_student,
+            device=DEVICE,
+        )
+        zt_student_2 = ddim_step_explicit(
+            z_t=zt,
+            eps=eps_s2,
             t=k,
             scheduler=ddim_student,
             device=DEVICE,
@@ -186,7 +260,11 @@ for epoch in range(EPOCHS):
         alpha_s, sigma_s = get_alpha_sigma(ddim_student, k, DEVICE)
         w = gamma_weight(alpha_s, sigma_s, GAMMA)
 
-        loss = torch.mean(w * (zt_student - zt_2) ** 2)
+                
+        loss_1 = (w * (zt_student_2 - zt_2) ** 2).mean()
+        loss_2 = (w * (zt_student_1 - zt_1) ** 2).mean()
+        loss = loss_1 + loss_2
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()

@@ -45,6 +45,7 @@ class EMA:
 config = UNet2DModel.load_config(
     "/teamspace/studios/this_studio/new_model/pretrained/ddpm_ema_cifar10/unet"
 )
+config['out_channels']= 6 
 model = UNet2DModel.from_config(config)
 
 # -------------------------
@@ -52,7 +53,7 @@ model = UNet2DModel.from_config(config)
 # -------------------------
 
 checkpoint = torch.load(
-    "/teamspace/studios/this_studio/pd_1000_to_500/ckpt_54000.pt",
+    "/teamspace/studios/this_studio/pd_1000_to_500_branch/ckpt_100000.pt",
     map_location="cpu",
 )
 
@@ -73,21 +74,26 @@ model.eval()
 # Load scheduler
 # -------------------------
 
-scheduler = DDIMScheduler(num_train_timesteps=(500),beta_start=0.0001, beta_end= 0.02, beta_schedule='linear',prediction_type='epsilon')
+scheduler = DDIMScheduler(
+    num_train_timesteps=500,
+    prediction_type="epsilon",
+)
 scheduler.set_timesteps(100)
-scheduler.timesteps= scheduler.timesteps.to(device=device)
+scheduler.timesteps = scheduler.timesteps.to(device)
 
-# -------------------------
-# Sampling
-# -------------------------
 samples = torch.randn((16, 3, 32, 32), device=device)
 
 with torch.no_grad():
-    for t in scheduler.timesteps:
-        model_output = model(samples, t).sample
+    for k in scheduler.timesteps:
+        # Student predicts BOTH eps_t and eps_{t-1}
+        eps_all = model(samples, k).sample
+
+        # USE ONLY eps_t head
+        eps = eps_all[:,-3:,:,:]
+
         samples = scheduler.step(
-            model_output=model_output,
-            timestep=t,
+            model_output=eps,
+            timestep=k,
             sample=samples,
         ).prev_sample
 
