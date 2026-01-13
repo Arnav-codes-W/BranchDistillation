@@ -20,7 +20,7 @@ The results of our experiments are shown below
 
 
 
-<img width="291" height="81" alt="Screenshot 2026-01-13 at 12 26 37 PM" src="https://github.com/user-attachments/assets/1a6c48a2-5f65-4c7f-a387-36b2aae995ce" />
+<img width="618" height="499" alt="image" src="https://github.com/user-attachments/assets/c7b274e9-3994-4402-875c-79e21c8fbb08" />
 
 
 In our framework, if the teacher model T performs N steps
