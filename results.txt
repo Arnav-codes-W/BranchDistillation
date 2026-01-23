@@ -1,11 +1,24 @@
-fid for the teacher model - 24.193
-Checkpoint: /teamspace/studios/this_studio/checkpoints_2/checkpoint_epoch_16.pt
-FID: 67.7459
-----------------------------------------
-fid of the pretrained model is 15.6 
+#these results are on 50k images and 100 timesteps 
+
 fid of the pretrained model with the paper weights is 5.55755 (ddim steps 100 and 50k images)
 fid of the distilled student with 500 steps is 11.9650 (ddim steps 100 and 50k images)
+fid of the distilled student with 500 steps - branch implementation is FID:  8.927219907577864 ( ddim steps 100 abs 50k images)
+fid of the distilled student with 250 steps is FID:  21.532771302375522 (ddim steps 100 and 50k images)
+fid of the distilled student with 250 steps - branch implementation is FID:  12.047222573816555 (ddim steps 100 and 50k images)
+fid of the distilled student with 125 steps is FID:  39.66128876462989 (ddim steps 100 and 50k images)
+fid of the distilled student with 125 steps - branch implementation is FID:  20.818667832817482 (ddim steps 100 and 50k images)
+fid of tge distilled student with 125 steps -branch implementation is FID:  21.089197192982283
 
+#these results are on 10k images and required timesteps 
+
+FID:  12.611657760136268 --512 steps  (512 ddim steps and 10k images) -- when 50,000 images used, the fid was 12 indicating timesteps bt nahi lagri and samples bt bhi nahi lagri- aisa hoskta hai ki timesteps se better horha ho but samples se worse horha ho 
+FID:  9.132326085571094 - 512 steps branch (512 ddim steps and 10k images)
+FID:  19.95264973724659 - 256 steps branch (256 ddim steps and 10k images)
+FID:  23.05431941509414 - 256 steps   (256 steps and 10k images)
+FID:  23.604069244313735 - 128 steps branch
+FID:  60.331293006936846 - 128 steps normal 
 
 ***nuances***
-1) the abrupt change in the fid of the student wrt the teacher is because we use loss parameterization in our distillation instead of v prediction and we dont use the right loss weighing scheme required 
+1) the abrupt change in the fid of the student wrt the teacher is because we use loss parameterization in our distillation instead of v prediction and we dont use the right loss weighing scheme required
+2) compare it to the ddim sampling at different sampling steps
+

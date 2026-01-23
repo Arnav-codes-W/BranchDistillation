@@ -1,4 +1,4 @@
-  import torch
+import torch
 import matplotlib.pyplot as plt
 from torchvision.utils import make_grid, save_image
 from diffusers import UNet2DModel, DDPMScheduler, DDIMScheduler
@@ -45,7 +45,7 @@ class EMA:
 config = UNet2DModel.load_config(
     "/teamspace/studios/this_studio/new_model/pretrained/ddpm_ema_cifar10/unet"
 )
-config['out_channels']= 6 
+
 model = UNet2DModel.from_config(config)
 
 # -------------------------
@@ -53,7 +53,7 @@ model = UNet2DModel.from_config(config)
 # -------------------------
 
 checkpoint = torch.load(
-    "/teamspace/studios/this_studio/pd_1000_to_500_branch/ckpt_20000.pt",
+    "/teamspace/studios/this_studio/checkpoints/pd_250_to_125/ckpt_25000.pt",
     map_location="cpu",
 )
 
@@ -74,8 +74,8 @@ model.eval()
 # Load scheduler
 # -------------------------
 
-scheduler = DDMScheduler(num_train_timesteps=(500),beta_start=0.0001, beta_end= 0.02, beta_schedule='linear',prediction_type='epsilon')
-scheduler.set_timesteps(20)
+scheduler = DDIMScheduler(num_train_timesteps=(125),beta_start=0.0001, beta_end= 0.02, beta_schedule='linear',prediction_type='epsilon')
+scheduler.set_timesteps(100)
 scheduler.timesteps= scheduler.timesteps.to(device=device)
 
 # -------------------------
@@ -111,6 +111,6 @@ plt.show()
 # -------------------------
 save_image(
     samples,
-    "images_generated/student_500.png",
+    "images_generated/student_125.png",
     nrow=4,
 )

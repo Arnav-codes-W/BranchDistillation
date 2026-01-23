@@ -66,14 +66,14 @@ class EMA:
 
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 EPOCHS = 140
 LR = 2e-5
 GAMMA= 1.0
-TEACHER_STEPS = 1000
-STUDENT_STEPS = 500
+TEACHER_STEPS = 250
+STUDENT_STEPS = 125
 
-SAVE_DIR = "./pd_1000_to_500"
+SAVE_DIR = "./pd_250_to_125"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 
@@ -105,9 +105,11 @@ config = UNet2DModel.load_config(
 )
 
 teacher = UNet2DModel.from_config(config)
-teacher.load_state_dict(
-    load_file("/teamspace/studios/this_studio/new_model/pretrained/ddpm_ema_cifar10/unet/diffusion_pytorch_model.safetensors")
+checkpoint = torch.load(
+    "/teamspace/studios/this_studio/pd_500_to_250/ckpt_54000.pt",
+    map_location="cpu",
 )
+teacher.load_state_dict(checkpoint['student'])
 teacher.to(DEVICE).eval()
 
 student = UNet2DModel.from_config(config)
@@ -206,4 +208,4 @@ for epoch in range(EPOCHS):
                 f"{SAVE_DIR}/ckpt_{global_step}.pt"
             )
 
-print("✅ Distillation 1000 → 500 finished")
+print("✅ Distillation 250 → 125 finished")

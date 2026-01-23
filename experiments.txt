@@ -1,0 +1,6 @@
+we use the original model used in the DDPM paper with 35.7M parameters 
+we use the original linear schedule described in the DDPM paper and predict the noise (epsilon)
+we progressively distill the model for 500, 250 and 125 iterations and provide the results. 
+in progressive and branch distillation, we use epsilon parameterization which results in the abrubpt change in the fid from the teacher to the student
+we use gamma weighing in the loss during distilllation 
+we distill for 50k iterations with a batch size of 128 and using adamw optimizer and LR of 2 * 10^-4 

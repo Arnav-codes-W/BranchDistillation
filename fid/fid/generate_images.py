@@ -1,4 +1,5 @@
 import os
+from sre_parse import BRANCH
 import torch
 from diffusers import DDIMScheduler,UNet2DModel, DDPMScheduler
 from torchvision.utils import save_image
@@ -40,19 +41,24 @@ class EMA:
 # -------------------------------------------------
 # Config
 # -------------------------------------------------
-TOTAL_IMAGES = 50_000
+TOTAL_IMAGES = 10_000
 BATCH_SIZE = 128         # adjust to GPU memory
 IMAGE_SIZE = 32
 CHANNELS = 3
-NUM_STEPS = 100           # DDIM steps
+NUM_STEPS = 128       # DDIM steps
 SAVE_DIR = "samples_fake"
-
+Branch= 'False'
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 config = UNet2DModel.load_config('/teamspace/studios/this_studio/new_model/pretrained/ddpm_ema_cifar10/unet')
-config['out_channels']= 6 
+
+if Branch == "True":
+    config['out_channels'] =6 
+else:
+    config['out_channels'] =3
+
 model = UNet2DModel.from_config(config=config)
 
 #state_dict = load_file('config = UNet2DModel.load_config('/teamspace/studios/this_studio/new_model/pretrained/ddpm_ema_cifar10/unet')
@@ -60,7 +66,7 @@ model = UNet2DModel.from_config(config=config)
 #teacher.eval()
 
 checkpoint = torch.load(
-    "/teamspace/studios/this_studio/pd_1000_to_500_branch/ckpt_100000.pt",
+    "/teamspace/studios/this_studio/checkpoints/pd_250_to_125/ckpt_25000.pt",
     map_location="cpu",
 )
 
@@ -73,7 +79,7 @@ model.eval()
 
 #creating the scheduler 
 
-scheduler = DDIMScheduler(num_train_timesteps=(500),beta_start=0.0001, beta_end= 0.02, beta_schedule='linear',prediction_type='epsilon')
+scheduler = DDIMScheduler(num_train_timesteps=(NUM_STEPS),beta_start=0.0001, beta_end= 0.02, beta_schedule='linear',prediction_type='epsilon')
 scheduler.set_timesteps(NUM_STEPS)
 scheduler.timesteps= scheduler.timesteps.to(device=device)
 
@@ -115,7 +121,7 @@ with torch.no_grad():
             )
             img_id += 1
 
-        if img_id % 5000 == 0:
+        if img_id % 512 == 0:
             print(f"✅ Generated {img_id}/{TOTAL_IMAGES} images")
 
-print("🎉 Finished generating 50k images")
+print("🎉 Finished generating 10k images")

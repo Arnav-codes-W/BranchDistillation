@@ -153,7 +153,8 @@ def get_activations(files, model, batch_size=50, dims=2048, device='cpu',
                                              batch_size=batch_size,
                                              shuffle=False,
                                              drop_last=False,
-                                             num_workers=num_workers)
+                                             num_workers=num_workers,
+                                             pin_memory=True)
 
     pred_arr = np.empty((len(files), dims))
 

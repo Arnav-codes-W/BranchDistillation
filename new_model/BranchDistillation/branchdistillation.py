@@ -72,7 +72,7 @@ class EMA:
 
 
 RESUME = True
-CKPT_PATH = "/teamspace/studios/this_studio/pd_1000_to_500_branch/ckpt_90000.pt"
+CKPT_PATH = "/teamspace/studios/this_studio/pd_128_to_64_branch/ckpt_34000.pt"
 
 
 
@@ -82,10 +82,10 @@ BATCH_SIZE = 128
 EPOCHS = 140
 LR = 2e-4
 GAMMA= 1.0
-TEACHER_STEPS = 1000
-STUDENT_STEPS = 500
+TEACHER_STEPS = 128
+STUDENT_STEPS = 64
 
-SAVE_DIR = "./pd_1000_to_500_branch"
+SAVE_DIR = "./pd_128_to_64_branch"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 
@@ -106,7 +106,7 @@ loader = DataLoader(
     dataset,
     batch_size=BATCH_SIZE,
     shuffle=True,
-    num_workers=8,
+    num_workers = 8,
     pin_memory=True,
     persistent_workers=True,
 )
@@ -115,27 +115,30 @@ loader = DataLoader(
 config = UNet2DModel.load_config(
     "/teamspace/studios/this_studio/new_model/pretrained/ddpm_ema_cifar10/unet"
 )
-
+config['out_channels']= 6
 teacher = UNet2DModel.from_config(config)
-teacher.load_state_dict(
-    load_file("/teamspace/studios/this_studio/new_model/pretrained/ddpm_ema_cifar10/unet/diffusion_pytorch_model.safetensors")
+checkpoint = torch.load(
+    "/teamspace/studios/this_studio/checkpoints/pd_250_to_125_branch/ckpt_50000.pt",
+    map_location="cpu",
 )
-teacher.to(DEVICE).eval()
-
+teacher.load_state_dict(checkpoint['student'])
+teacher.to(DEVICE).eval() #teacher fixed to eval 
 #config for branching out 
 
-config['out_channels']= 6
+
 student = UNet2DModel.from_config(config)
 
 #loading the weights 
 teacher_state = teacher.state_dict()
-
+'''
 # remove output layer
 for k in ["conv_out.weight", "conv_out.bias"]:
     teacher_state.pop(k)
+'''
 
 student.load_state_dict(teacher_state, strict=False) #init student w tteacher without the last layer kernels 
 
+'''
 #load the teacher last layer weights twice into the student last layer
 with torch.no_grad():
     # Teacher output
@@ -152,8 +155,8 @@ with torch.no_grad():
 
     b_s[0:3].copy_(b_t)
     b_s[3:6].copy_(b_t)
-
-student.to(DEVICE).train()
+'''
+student.to(DEVICE).train() #student fixed to train 
   
 
 ema = EMA(student)
@@ -175,7 +178,7 @@ ddim_student = DDIMScheduler(
 )
 ddim_student.set_timesteps(STUDENT_STEPS)
 
-optimizer = AdamW(student.parameters(), lr=LR)
+optimizer = AdamW(student.parameters(), lr=LR) #we only update student parameters 
 loss_fn = nn.MSELoss()
 
 start_step = 0
@@ -218,17 +221,21 @@ for epoch in range(start_epoch,EPOCHS):
 
         with torch.no_grad():
             # t -> t-1
+
+            #we only have to use the last teacher channels for both of the z predictions 
             eps_t = teacher(zt, t).sample
+            eps_t = eps_t[:,-3:,:,:]
             zt_1 = ddim_step_explicit(
                 z_t=zt,
                 eps=eps_t,
                 t=t,
                 scheduler=ddim_teacher,
                 device=DEVICE,
-            )
+            ) #this is just paremeterization and no learning is taking place 
 
             # t-1 -> t-2
             eps_t1 = teacher(zt_1, t - 1).sample
+            eps_t1= eps_t1[:,-3:,:,:]
             zt_2 = ddim_step_explicit(
                 z_t=zt_1,
                 eps=eps_t1,
@@ -258,7 +265,7 @@ for epoch in range(start_epoch,EPOCHS):
         )
 
         alpha_s, sigma_s = get_alpha_sigma(ddim_student, k, DEVICE)
-        w = gamma_weight(alpha_s, sigma_s, GAMMA)
+        w = gamma_weight(alpha_s, sigma_s, GAMMA) #we use gamma weighing 
 
                 
         loss_1 = (w * (zt_student_2 - zt_2) ** 2).mean()
@@ -283,4 +290,4 @@ for epoch in range(start_epoch,EPOCHS):
                 f"{SAVE_DIR}/ckpt_{global_step}.pt"
             )
 
-print("✅ Distillation 1000 → 500 finished")
+print("✅ Distillation 500 → 250 finished")

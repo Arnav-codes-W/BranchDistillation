@@ -53,7 +53,7 @@ model = UNet2DModel.from_config(config)
 # -------------------------
 
 checkpoint = torch.load(
-    "/teamspace/studios/this_studio/pd_1000_to_500_branch/ckpt_100000.pt",
+    "/teamspace/studios/this_studio/pd_250_to_125_branch/ckpt_50000.pt",
     map_location="cpu",
 )
 
@@ -75,7 +75,7 @@ model.eval()
 # -------------------------
 
 scheduler = DDIMScheduler(
-    num_train_timesteps=500,
+    num_train_timesteps=125,
     prediction_type="epsilon",
 )
 scheduler.set_timesteps(100)
@@ -116,6 +116,6 @@ plt.show()
 # -------------------------
 save_image(
     samples,
-    "images_generated/student_500.png",
+    "images_generated/student_125_branch.png",
     nrow=4,
 )
